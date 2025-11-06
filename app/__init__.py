@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from app.extensions import mongo, jwt
 from flask_cors import CORS
 from app.routes.auth_routes import auth_bp
@@ -9,6 +9,10 @@ import os
 def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
+
+    # Initialize MongoDB and JWT first
+    mongo.init_app(app)
+    jwt.init_app(app)
 
     # ✅ CORS configuration - Fixed: Cannot use supports_credentials with origins="*"
     # Get allowed origins from environment or use defaults
@@ -24,6 +28,7 @@ def create_app():
     # Remove duplicates while preserving order
     allowed_origins = list(dict.fromkeys(allowed_origins))
     
+    # Configure CORS - must be done before routes are registered
     CORS(app, 
          resources={r"/api/*": {
              "origins": allowed_origins,
@@ -32,15 +37,28 @@ def create_app():
              "supports_credentials": True,
              "max_age": 3600
          }},
-         automatic_options=True
+         automatic_options=True,
+         supports_credentials=True
     )
 
-    mongo.init_app(app)
-    jwt.init_app(app)
-
-    # Register routes
+    # Register routes first
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(report_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api')
+
+    # Add explicit OPTIONS handler as fallback for all API routes
+    # This ensures preflight requests always return 200 OK even if Flask-CORS fails
+    @app.route("/api/<path:path>", methods=["OPTIONS"])
+    def handle_options(path):
+        """Handle OPTIONS preflight requests for all API routes"""
+        response = jsonify({})
+        origin = request.headers.get("Origin")
+        if origin in allowed_origins:
+            response.headers.add("Access-Control-Allow-Origin", origin)
+            response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+            response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+            response.headers.add("Access-Control-Allow-Credentials", "true")
+            response.headers.add("Access-Control-Max-Age", "3600")
+        return response, 200
 
     return app
