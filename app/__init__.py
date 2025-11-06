@@ -9,11 +9,12 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
-    # ✅ Allow both local and production frontend URLs
+    # ✅ Updated CORS with your actual URLs
     CORS(app, origins=[
         "http://localhost:5173",  # for local dev
-        "https://menstrucare-frontend.vercel.app"  # production
-    ])
+        "https://menstrucare-frontend.vercel.app",  # production
+        "https://*.vercel.app"  # all Vercel preview deployments
+    ], supports_credentials=True)
 
     mongo.init_app(app)
     jwt.init_app(app)
