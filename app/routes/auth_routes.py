@@ -4,25 +4,9 @@ from app.extensions import mongo
 from flask_jwt_extended import create_access_token
 from flask_pymongo.wrappers import Database
 from typing import cast, Optional
-import os
+from app.utils import get_database
 
 auth_bp = Blueprint('auth', __name__)
-
-def get_database() -> Optional[Database]:
-    """
-    Safely get the database connection.
-    If mongo.db is None (database not in URI), use mongo.cx to get it.
-    """
-    if mongo.db is not None:
-        return cast(Database, mongo.db)
-    
-    # Fallback: if db is None, try to get it from the client
-    # Use MONGO_DB_NAME env var or default to 'deathofme'
-    if mongo.cx is not None:
-        db_name = os.getenv('MONGO_DB_NAME', 'deathofme')
-        return cast(Database, mongo.cx[db_name])
-    
-    return None
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -112,5 +96,6 @@ def signup():
     except Exception as e:
         print("Signup error:", e)
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
 
 
