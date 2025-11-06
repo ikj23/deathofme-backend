@@ -8,6 +8,9 @@ class Config:
     # MongoDB Atlas Connection URI
     MONGO_URI = os.getenv("MONGO_URI")
 
+    # MongoDB Database Name (used if MONGO_URI doesn't specify a database)
+    MONGO_DBNAME = os.getenv("MONGO_DBNAME", "deathofme")
+
     # JWT Secret Key for authentication
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default-secret-key")
 
@@ -16,3 +19,4 @@ class Config:
 
     # Optional: Flask Environment Settings
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
