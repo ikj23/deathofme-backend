@@ -1,27 +1,28 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.extensions import mongo
 from flask_jwt_extended import create_access_token
 from flask_pymongo.wrappers import Database
-from typing import cast
+from typing import cast, Optional
+import os
 
 auth_bp = Blueprint('auth', __name__)
 
-def get_database():
+def get_database() -> Optional[Database]:
     """
-    Safely get the MongoDB database instance.
-    If mongo.db is None (URI doesn't specify database), use mongo.cx with a default database name.
+    Safely get the database connection.
+    If mongo.db is None (database not in URI), use mongo.cx to get it.
     """
     if mongo.db is not None:
         return cast(Database, mongo.db)
     
-    # If db is None, get database from client
-    if mongo.cx is None:
-        raise ValueError("Database connection not available")
+    # Fallback: if db is None, try to get it from the client
+    # Use MONGO_DB_NAME env var or default to 'deathofme'
+    if mongo.cx is not None:
+        db_name = os.getenv('MONGO_DB_NAME', 'deathofme')
+        return cast(Database, mongo.cx[db_name])
     
-    # Use database name from config or default
-    db_name = current_app.config.get('MONGO_DBNAME', 'deathofme')
-    return mongo.cx[db_name]
+    return None
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -36,13 +37,17 @@ def login():
         if not all([email, password, role]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        # ✅ Get database safely
-        try:
-            db = get_database()
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 500
-        
         collection_name = 'admins' if role == 'admin' else 'users'
+        
+        # ✅ Validate collection_name is not None
+        if not collection_name:
+            return jsonify({"error": "Invalid role specified"}), 400
+
+        # ✅ Get database connection safely
+        db = get_database()
+        if db is None:
+            return jsonify({"error": "Database connection not established"}), 500
+
         user = db[collection_name].find_one({"email": email})
 
         if not user:
@@ -56,8 +61,6 @@ def login():
 
     except Exception as e:
         print("Login error:", e)
-        import traceback
-        traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
@@ -74,13 +77,17 @@ def signup():
         if not all([email, password]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        # ✅ Get database safely
-        try:
-            db = get_database()
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 500
-        
         collection_name = 'admins' if role == 'admin' else 'users'
+
+        # ✅ Validate collection_name is not None
+        if not collection_name:
+            return jsonify({"error": "Invalid role specified"}), 400
+
+        # ✅ Get database connection safely
+        db = get_database()
+        if db is None:
+            return jsonify({"error": "Database connection not established"}), 500
+
         existing_user = db[collection_name].find_one({"email": email})
         if existing_user:
             return jsonify({"error": "Email already registered"}), 409
@@ -104,7 +111,6 @@ def signup():
 
     except Exception as e:
         print("Signup error:", e)
-        import traceback
-        traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
 
